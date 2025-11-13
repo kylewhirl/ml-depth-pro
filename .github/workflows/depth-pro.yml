@@ -2,21 +2,24 @@ name: Generate grayscale depth maps
 
 on:
   push:
-    branches: [ "main" ]
+    paths:
+      - "data/**"
+      - "output/**"
   workflow_dispatch:
 
 permissions:
-  contents: write   # REQUIRED to allow pushing changes
+  contents: write
 
 jobs:
   depthpro-grayscale:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository with write access
+      - name: Check out repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -31,22 +34,53 @@ jobs:
       - name: Ensure output directory exists
         run: mkdir -p output
 
-      - name: Run DepthPro on ./data -> ./output
+      - name: Compute list of missing images
+        id: missing
+        shell: bash
         run: |
-          depth-pro-run \
-            -i ./data \
-            -o ./output \
-            --skip-display \
-            --grayscale
+          MISSING=""
+          shopt -s globstar
 
-      - name: Commit and push updated output folder
+          for img in data/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}; do
+            [ -e "$img" ] || continue
+
+            base=$(basename "$img")
+            name="${base%.*}"
+            out="output/${name}-grayscale.png"
+
+            if [ ! -f "$out" ]; then
+              echo "Missing: $img"
+              MISSING="$MISSING $img"
+            fi
+          done
+
+          echo "missing_images=$MISSING" >> $GITHUB_OUTPUT
+
+      - name: Run DepthPro only for missing images
+        if: steps.missing.outputs.missing_images != ''
         run: |
-          git config user.email "actions@github.com"
-          git config user.name  "GitHub Actions"
+          for img in ${MISSING_IMAGES}; do
+            echo "Processing $img"
+            depth-pro-run \
+              -i "$img" \
+              -o ./output \
+              --skip-display \
+              --grayscale
+          done
+        env:
+          MISSING_IMAGES: ${{ steps.missing.outputs.missing_images }}
+
+      - name: Commit and push updated depth maps
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add output
 
-          # If nothing changed, don't fail
-          git diff --cached --quiet || git commit -m "Update grayscale depth maps"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
 
-          git push
+          git commit -m "Add new depth maps [skip ci]"
+          git push origin HEAD:main
