@@ -31,6 +31,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
 
+      # NEW STEP: Download checkpoints if missing
+      - name: Download pretrained model checkpoints
+        shell: bash
+        run: |
+          if [ ! -d "checkpoints" ] || [ -z "$(ls -A checkpoints)" ]; then
+            echo "Checkpoints missing — downloading..."
+            chmod +x get_pretrained_models.sh
+            ./get_pretrained_models.sh
+          else
+            echo "Checkpoints already present — skipping download."
+          fi
+
       - name: Ensure output directory exists
         run: mkdir -p output
 
