@@ -1,10 +1,6 @@
 name: Generate grayscale depth maps
 
 on:
-  push:
-    paths:
-      - "data/**"
-      - "output/**"
   workflow_dispatch:
 
 permissions:
