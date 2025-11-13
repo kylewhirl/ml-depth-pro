@@ -83,27 +83,37 @@ def run(args):
             max_invdepth_vizu - min_invdepth_vizu
         )
 
-        # Save Depth as npz file.
+        # Save outputs
         if args.output_path is not None:
             output_file = (
                 args.output_path
                 / image_path.relative_to(relative_path).parent
                 / image_path.stem
             )
-            LOGGER.info(f"Saving depth map to: {str(output_file)}")
             output_file.parent.mkdir(parents=True, exist_ok=True)
-            np.savez_compressed(output_file, depth=depth)
 
-            # Save as color-mapped "turbo" jpg image.
-            cmap = plt.get_cmap("turbo")
-            color_depth = (cmap(inverse_depth_normalized)[..., :3] * 255).astype(
-                np.uint8
-            )
-            color_map_output_file = str(output_file) + ".jpg"
-            LOGGER.info(f"Saving color-mapped depth to: : {color_map_output_file}")
-            PIL.Image.fromarray(color_depth).save(
-                color_map_output_file, format="JPEG", quality=90
-            )
+            if args.grayscale:
+                # Save 8-bit grayscale PNG of inverse-depth normalization (near = bright)
+                gray = (inverse_depth_normalized * 255).astype(np.uint8)
+                grayscale_output_file = str(output_file) + "-grayscale.png"
+                LOGGER.info(f"Saving grayscale depth to: {grayscale_output_file}")
+                PIL.Image.fromarray(gray).save(grayscale_output_file, format="PNG")
+            else:
+                # Default behavior: save NPZ and color-mapped JPG
+                LOGGER.info(f"Saving depth map to: {str(output_file)}")
+                np.savez_compressed(output_file, depth=depth)
+
+                cmap = plt.get_cmap("turbo")
+                color_depth = (cmap(inverse_depth_normalized)[..., :3] * 255).astype(
+                    np.uint8
+                )
+                color_map_output_file = str(output_file) + ".jpg"
+                LOGGER.info(
+                    f"Saving color-mapped depth to: : {color_map_output_file}"
+                )
+                PIL.Image.fromarray(color_depth).save(
+                    color_map_output_file, format="JPEG", quality=90
+                )
 
         # Display the image and estimated depth map.
         if not args.skip_display:
@@ -139,6 +149,14 @@ def main():
         "--skip-display",
         action="store_true",
         help="Skip matplotlib display.",
+    )
+    parser.add_argument(
+        "--grayscale",
+        action="store_true",
+        help=(
+            "Save an 8-bit grayscale depth PNG (nearer = brighter) to the output path. "
+            "When set, skips saving the NPZ and color-mapped JPG."
+        ),
     )
     parser.add_argument(
         "-v", 
