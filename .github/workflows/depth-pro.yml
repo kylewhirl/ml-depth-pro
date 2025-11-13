@@ -31,17 +31,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
 
-      # NEW STEP: Download checkpoints if missing
-      - name: Download pretrained model checkpoints
+      # -----------------------------------------------------------
+      # NEW: Cache checkpoints (up to 10GB)
+      # -----------------------------------------------------------
+      - name: Cache pretrained model checkpoints
+        id: cache-checkpoints
+        uses: actions/cache@v4
+        with:
+          path: checkpoints
+          key: depthpro-checkpoints-v1
+
+      # If cache miss → download checkpoints
+      - name: Download pretrained model checkpoints (if missing)
+        if: steps.cache-checkpoints.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          if [ ! -d "checkpoints" ] || [ -z "$(ls -A checkpoints)" ]; then
-            echo "Checkpoints missing — downloading..."
-            chmod +x get_pretrained_models.sh
-            ./get_pretrained_models.sh
-          else
-            echo "Checkpoints already present — skipping download."
-          fi
+          echo "Cache miss — downloading checkpoints..."
+          chmod +x get_pretrained_models.sh
+          ./get_pretrained_models.sh
 
       - name: Ensure output directory exists
         run: mkdir -p output
